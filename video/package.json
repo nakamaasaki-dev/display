@@ -1,0 +1,14 @@
+{
+  "name": "chinamini-quiz-video",
+  "version": "1.0.0",
+  "private": true,
+  "description": "チナミニ クイズ動画(mp4)レンダラー。index.html を Chromium で撮影して ffmpeg で mp4 にする",
+  "scripts": {
+    "render": "node render.js",
+    "frames": "node render.js --frames-only"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "playwright": "1.56.1"
+  }
+}

@@ -1,0 +1,92 @@
+name: Render quiz videos
+
+# playlist.json のクイズを社内ディスプレイ向け mp4(1920×1080、71 秒)にする夜間バッチ。
+# 描画はサイネージ用 index.html と同じコードなので、QR の位置や秒数はページ側の仕様と常に一致する。
+# 出来上がった mp4 と確認用フレーム(答え・誘導)は Actions の artifact「quiz-videos」から取れる。
+
+on:
+  workflow_dispatch:
+    inputs:
+      ids:
+        description: "書き出す id をカンマ区切りで(空なら全クイズ)"
+        required: false
+        default: ""
+  schedule:
+    # 週次。月曜 03:10 JST(日曜 18:10 UTC)
+    - cron: "10 18 * * 0"
+  push:
+    branches: [main, "claude/hopeful-thompson-8i5a79"]
+    paths:
+      - playlist.json
+      - index.html
+      - vendor/**
+      - assets/**
+      - video/**
+      - .github/workflows/render-videos.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: render-videos
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate playlist.json
+        run: python3 -c "import json; d=json.load(open('playlist.json')); q=[i for i in d['items'] if i.get('type')=='quiz']; assert q, 'no quiz items'; print(len(q), 'quiz items')"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: video/package-lock.json
+
+      - name: Install ffmpeg and Japanese fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends ffmpeg fonts-noto-cjk
+          fc-list | grep -c "Noto Sans CJK JP"
+
+      - name: Install Playwright
+        working-directory: video
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Render
+        run: |
+          IDS="${{ github.event.inputs.ids }}"
+          if [ -n "$IDS" ]; then node video/render.js --ids "$IDS"; else node video/render.js; fi
+
+      - name: Summary
+        run: |
+          {
+            echo "## クイズ動画"
+            echo
+            echo "| id | 秒数 | 解説の文字サイズ | サイズ |"
+            echo "|---|---|---|---|"
+            node -e '
+              const fs = require("fs");
+              const r = JSON.parse(fs.readFileSync("out/render.json", "utf8"));
+              for (const it of r.items) {
+                const mb = (fs.statSync(it.out).size / 1048576).toFixed(1);
+                console.log(`| ${it.id} | ${it.total} 秒 | ${it.explSize}px | ${mb} MB |`);
+              }'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quiz-videos
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            out/*.mp4
+            out/render.json
+            out/frames/*/answer.png
+            out/frames/*/cta.png
