@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WorkX 息抜きシリーズ</title>
+<meta name="description" content="社内ディスプレイ向けサイネージ。playlist.json の内容を全画面でループ再生します。">
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --navy: #1D2D4C;
+    --navy-soft: #3A4A6A;
+    --ink: #1D2D4C;
+    --muted: #8A90A0;
+    --line: #1D2D4C;
+    --rule: #D5DBE6;
+    --choice-bg: #EEF3FE;
+    --choice-border: #C9D3E6;
+    --footer-bg: #E9EFF7;
+    --bar: #4671BF;
+    --bar-track: #DFDDDC;
+    --paper: #FFFFFF;
+    --font: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", "YuGothic", "Meiryo", system-ui, sans-serif;
+  }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor: none; }
+  body { font-family: var(--font); color: var(--ink); -webkit-font-smoothing: antialiased; }
+
+  /* 1920x1080 の固定ステージを画面サイズに合わせて拡縮する */
+  #viewport { position: fixed; inset: 0; }
+  #stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; background: var(--paper); overflow: hidden; transform-origin: center center; }
+
+  .screen { position: absolute; inset: 0; display: none; flex-direction: column; background: var(--paper); }
+  .screen.active { display: flex; }
+
+  /* 共通部品 */
+  .body { flex: 1; display: flex; flex-direction: column; padding: 56px 90px 0; min-height: 0; }
+  .category { font-size: 30px; color: var(--muted); letter-spacing: 0.06em; height: 44px; line-height: 44px; }
+  .question { font-size: 46px; font-weight: 700; line-height: 1.7; margin: 14px 0 0; letter-spacing: 0.01em; }
+  .rule { height: 3px; background: var(--line); margin: 26px 0 0; }
+  .rule.thin { height: 2px; background: var(--rule); }
+
+  .choices { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 20px; padding: 26px 0 8px; min-height: 0; }
+  .choice { display: flex; align-items: center; gap: 24px; padding: 0 30px; min-height: 96px; max-height: 130px; flex: 1;
+            background: var(--choice-bg); border: 2px solid var(--choice-border); border-radius: 8px; font-size: 36px; font-weight: 700; line-height: 1.4; }
+  .choice .num { font-size: 40px; color: var(--navy); font-weight: 700; flex: 0 0 auto; }
+  .choice.correct { background: var(--navy); border-color: var(--navy); color: #fff; }
+  .choice.correct .num { color: #fff; }
+  .choice.answer-only { flex: 0 0 auto; min-height: 118px; }
+
+  .hint { display: flex; align-items: center; gap: 24px; height: 70px; margin: 8px 0 0; visibility: hidden; }
+  .hint.show { visibility: visible; }
+  .hint .tag { background: var(--navy); color: #fff; font-size: 30px; font-weight: 700; letter-spacing: 0.2em; padding: 0 28px; height: 62px; line-height: 62px; border-radius: 4px; }
+  .hint .text { font-size: 40px; font-weight: 700; }
+
+  .progress { height: 12px; margin: 0 90px 12px; background: var(--bar-track); border-radius: 6px; overflow: hidden; }
+  .progress > i { display: block; height: 100%; width: 0; background: var(--bar); border-radius: 6px; }
+
+  .footer { height: 90px; background: var(--footer-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 90px; font-size: 28px; color: var(--ink); }
+  .footer img { height: 56px; }
+
+  /* タイトル */
+  .title-screen .body { align-items: center; justify-content: center; text-align: center; }
+  .title-screen .lead { font-size: 64px; font-weight: 700; color: var(--navy-soft); margin-bottom: 14px; }
+  .title-screen .big { font-size: 118px; font-weight: 900; color: var(--navy); line-height: 1.2; }
+  .title-screen .tline { width: 460px; height: 3px; background: var(--bar); margin: 40px 0 46px; }
+  .title-screen img { height: 90px; }
+
+  /* 答えと解説 */
+  .answer-label { font-size: 30px; color: var(--muted); letter-spacing: 0.2em; margin: 44px 0 10px; }
+  .answer-row { flex: 1; display: flex; gap: 48px; min-height: 0; padding-top: 22px; }
+  .explanation { flex: 1; font-size: 36px; line-height: 1.9; letter-spacing: 0.01em; }
+  .qr-side { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 10px; padding-bottom: 12px; }
+  .qr-side .qr { width: 210px; height: 210px; background: #fff; border: 2px solid var(--rule); border-radius: 10px; padding: 10px; box-sizing: border-box; }
+  .qr-side .qr svg { width: 100%; height: 100%; display: block; }
+  .qr-side .cap { font-size: 24px; color: var(--navy-soft); font-weight: 700; }
+
+  /* 誘導 */
+  .cta-screen .body { flex-direction: row; align-items: center; justify-content: center; gap: 140px; padding-bottom: 60px; }
+  .cta-screen .txt .h { font-size: 60px; font-weight: 700; line-height: 1.5; color: var(--navy); }
+  .cta-screen .txt .s { font-size: 32px; line-height: 1.7; color: var(--navy-soft); margin-top: 26px; }
+  .cta-screen .txt .u { font-size: 28px; color: var(--muted); margin-top: 26px; }
+  .cta-screen .qrbox { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+  .cta-screen .qr { width: 400px; height: 400px; background: #fff; border: 2px solid var(--rule); border-radius: 12px; padding: 20px; box-sizing: border-box; }
+  .cta-screen .qr svg { width: 100%; height: 100%; display: block; }
+  .cta-screen .qrcap { font-size: 30px; font-weight: 700; color: var(--navy); }
+
+  /* 正解公開前 */
+  .locked-screen .body { align-items: center; justify-content: center; text-align: center; }
+  .locked-screen .h { font-size: 72px; font-weight: 900; color: var(--navy); }
+  .locked-screen .s { font-size: 40px; color: var(--navy-soft); margin-top: 30px; }
+
+  /* 汎用スライド */
+  .slide-screen .body { padding-top: 70px; }
+  .slide-screen .h { font-size: 64px; font-weight: 900; color: var(--navy); line-height: 1.3; }
+  .slide-screen .sub { font-size: 34px; color: var(--muted); margin-top: 10px; }
+  .slide-screen .lines { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 22px; padding: 30px 0; }
+  .slide-screen .line { display: flex; align-items: center; gap: 28px; font-size: 40px; font-weight: 700; padding: 22px 30px; background: var(--choice-bg); border: 2px solid var(--choice-border); border-radius: 8px; }
+  .slide-screen .line .k { color: var(--bar); font-size: 44px; flex: 0 0 auto; min-width: 70px; }
+  .slide-screen .line .v { margin-left: auto; color: var(--navy-soft); font-weight: 700; }
+
+  /* 画像・動画 */
+  .media-screen { background: #000; }
+  .media-screen img, .media-screen video { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+  /* 待機 */
+  .idle-screen .body { align-items: center; justify-content: center; }
+  .idle-screen img { height: 120px; opacity: 0.9; }
+  .idle-screen .s { margin-top: 40px; font-size: 30px; color: var(--muted); }
+
+  #err { position: absolute; left: 20px; bottom: 100px; font-size: 20px; color: #b00; background: rgba(255,255,255,.9); padding: 6px 10px; border-radius: 4px; display: none; }
+</style>
+</head>
+<body>
+<div id="viewport"><div id="stage">
+  <div id="scr-idle" class="screen idle-screen"><div class="body"><img id="idle-logo" alt=""><div class="s" id="idle-msg">コンテンツを読み込んでいます</div></div></div>
+  <div id="err"></div>
+</div></div>
+
+<script src="vendor/qrcode.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  const DEFAULT_TIMING = { title: 3, question: 20, hint: 15, answer: 25, cta: 8 };
+  const DEFAULT_BRAND = {
+    lead: 'ちょっと息抜き！',
+    title: '雑学クイズ！',
+    footer: 'チナミニ(chinamini.app)| WorkX 息抜きシリーズ',
+    logo: 'assets/workx-logo.png',
+    ctaTitle: '詳しくは「チナミニ」の記事ページで！',
+    ctaSub: 'この問題のもとになった記事を、スマホで最後まで読めます。',
+    qrCaption: 'スマホで読み取り',
+    answerQrCaption: '記事はこちら'
+  };
+
+  const params = new URLSearchParams(location.search);
+  const PLAYLIST_URL = params.get('playlist') || 'playlist.json';
+  const SPEED = Math.max(0.05, parseFloat(params.get('speed') || '1'));   // 動作確認用。2 なら 2 倍速
+  const JUMP_ITEM = params.get('item');            // 動作確認用。0 始まりの index
+  const JUMP_SCREEN = params.get('screen');        // 動作確認用。title/question/hint/answer/cta
+  const FREEZE = params.get('freeze') === '1';     // 動作確認用。画面を止める
+
+  const stage = document.getElementById('stage');
+  const errBox = document.getElementById('err');
+  const idleScreen = document.getElementById('scr-idle');
+
+  let playlist = null;        // 表示中の playlist
+  let pending = null;         // 次のループから使う playlist
+  let itemIndex = 0;
+  let timer = null;
+  let cleanup = null;
+  const startedAt = Date.now();
+
+  // ---------- 拡縮 ----------
+  function fit() {
+    const s = Math.min(innerWidth / 1920, innerHeight / 1080);
+    stage.style.transform = `translate(-50%, -50%) scale(${s})`;
+  }
+  addEventListener('resize', fit); fit();
+
+  // ---------- 画面のスリープ防止(対応ブラウザのみ) ----------
+  async function keepAwake() {
+    try { if (navigator.wakeLock) await navigator.wakeLock.request('screen'); } catch (_) {}
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) keepAwake(); });
+  keepAwake();
+
+  // ---------- playlist の取得 ----------
+  async function fetchPlaylist() {
+    const url = PLAYLIST_URL + (PLAYLIST_URL.includes('?') ? '&' : '?') + 't=' + Date.now();
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    if (!json || !Array.isArray(json.items)) throw new Error('items がありません');
+    return json;
+  }
+
+  function loadCached() {
+    try { const s = localStorage.getItem('playlist'); return s ? JSON.parse(s) : null; } catch (_) { return null; }
+  }
+  function saveCache(json) {
+    try { localStorage.setItem('playlist', JSON.stringify(json)); } catch (_) {}
+  }
+
+  async function refresh() {
+    try {
+      const json = await fetchPlaylist();
+      const same = playlist && JSON.stringify(json) === JSON.stringify(playlist);
+      if (!same) { pending = json; saveCache(json); }
+      showError('');
+    } catch (e) {
+      showError('playlist の取得に失敗: ' + e.message);
+    }
+  }
+
+  function showError(msg) {
+    errBox.textContent = msg; errBox.style.display = msg ? 'block' : 'none';
+  }
+
+  // ---------- 表示条件 ----------
+  function isLive(item, now) {
+    if (item.enabled === false) return false;
+    if (item.from && now < new Date(item.from)) return false;
+    if (item.until && now > new Date(item.until)) return false;
+    if (Array.isArray(item.weekdays) && item.weekdays.length && !item.weekdays.includes(now.getDay())) return false;
+    return true;
+  }
+  function liveItems() {
+    const now = new Date();
+    return (playlist ? playlist.items : []).filter(it => isLive(it, now));
+  }
+
+  // ---------- QR ----------
+  function qrSvg(text) {
+    try {
+      const q = qrcode(0, 'M');
+      q.addData(text);
+      q.make();
+      return q.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+    } catch (e) { return ''; }
+  }
+
+  // ---------- 描画部品 ----------
+  function el(tag, cls, html) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (html != null) e.innerHTML = html;
+    return e;
+  }
+  function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+  function brand() { return Object.assign({}, DEFAULT_BRAND, playlist && playlist.brand || {}); }
+  function timing(item) { return Object.assign({}, DEFAULT_TIMING, playlist && playlist.timing || {}, item && item.timing || {}); }
+  function circled(i) { return ['①', '②', '③', '④', '⑤', '⑥'][i] || String(i + 1); }
+
+  function footer() {
+    const b = brand();
+    const f = el('div', 'footer');
+    f.append(el('span', null, esc(b.footer)));
+    if (b.logo) { const img = el('img'); img.src = b.logo; img.alt = ''; f.append(img); }
+    return f;
+  }
+  function progress() { const p = el('div', 'progress'); p.append(el('i')); return p; }
+
+  function mount(screen) {
+    for (const s of stage.querySelectorAll('.screen')) s.classList.remove('active');
+    for (const s of stage.querySelectorAll('.screen:not(#scr-idle)')) s.remove();
+    stage.append(screen);
+    screen.classList.add('active');
+    fitText(screen);
+  }
+
+  // 本文が枠からはみ出す場合は、文字を少しずつ小さくして収める
+  function fitText(screen) {
+    const body = screen.querySelector('.body');
+    if (!body) return;
+    const targets = [
+      ['.explanation', 36, 26],
+      ['.choice', 36, 26],
+      ['.question', 46, 34],
+      ['.slide-screen .line', 40, 28],
+    ].map(([sel, max, min]) => ({ els: [...screen.querySelectorAll(sel)], size: max, min }))
+     .filter(t => t.els.length);
+    const overflows = () => body.scrollHeight > body.clientHeight + 1 || targets.some(t => t.els.some(e => e.scrollHeight > e.clientHeight + 1));
+    for (let guard = 0; guard < 40 && overflows(); guard++) {
+      const t = targets.find(t => t.size > t.min);
+      if (!t) break;
+      t.size -= 1;
+      t.els.forEach(e => { e.style.fontSize = t.size + 'px'; });
+    }
+  }
+
+  // 秒数付きで画面を出し、進捗バーを動かして終わったら next()
+  function hold(screen, sec, next) {
+    mount(screen);
+    const bar = screen.querySelector('.progress > i');
+    const ms = sec * 1000 / SPEED;
+    const t0 = performance.now();
+    let raf = 0;
+    if (bar) {
+      const tick = (t) => { bar.style.width = Math.min(100, (t - t0) / ms * 100) + '%'; if (!FREEZE) raf = requestAnimationFrame(tick); };
+      raf = requestAnimationFrame(tick);
+    }
+    cleanup = () => { cancelAnimationFrame(raf); clearTimeout(timer); };
+    if (!FREEZE) timer = setTimeout(next, ms);
+  }
+
+  // ---------- クイズ ----------
+  function quizHeader(item) {
+    const body = el('div', 'body');
+    body.append(el('div', 'category', esc('雑学クイズ ｜ ' + (item.category || ''))));
+    body.append(el('div', 'question', esc(item.question)));
+    body.append(el('div', 'rule'));
+    return body;
+  }
+  function choiceList(item, correctOnly) {
+    const wrap = el('div', 'choices');
+    (item.choices || []).forEach((c, i) => {
+      const isAns = (i + 1) === Number(item.answer);
+      if (correctOnly && !isAns) return;
+      const d = el('div', 'choice' + (correctOnly ? ' correct answer-only' : ''));
+      d.append(el('span', 'num', circled(i)), el('span', null, esc(c)));
+      wrap.append(d);
+    });
+    if (correctOnly) { wrap.style.flex = '0 0 auto'; wrap.style.padding = '30px 0 0'; }
+    return wrap;
+  }
+
+  function screenTitle() {
+    const b = brand();
+    const s = el('div', 'screen title-screen');
+    const body = el('div', 'body');
+    body.append(el('div', 'lead', esc(b.lead)), el('div', 'big', esc(b.title)), el('div', 'tline'));
+    if (b.logo) { const img = el('img'); img.src = b.logo; img.alt = ''; body.append(img); }
+    s.append(body);
+    return s;
+  }
+  function screenQuestion(item, withHint) {
+    const s = el('div', 'screen');
+    const body = quizHeader(item);
+    body.append(choiceList(item, false));
+    const h = el('div', 'hint' + (withHint ? ' show' : ''));
+    h.append(el('span', 'tag', 'ヒント'), el('span', 'text', esc(item.hint || '')));
+    body.append(h);
+    s.append(body, progress(), footer());
+    return s;
+  }
+  function screenAnswer(item) {
+    const b = brand();
+    const s = el('div', 'screen');
+    const body = quizHeader(item);
+    body.append(choiceList(item, true));
+    body.append(el('div', 'answer-label', '答えと解説'), el('div', 'rule thin'));
+    const row = el('div', 'answer-row');
+    row.append(el('div', 'explanation', esc(item.explanation || '')));
+    if (item.url) {
+      const side = el('div', 'qr-side');
+      side.append(el('div', 'qr', qrSvg(item.url)), el('div', 'cap', esc(item.answerQrCaption || b.answerQrCaption)));
+      row.append(side);
+    }
+    body.append(row);
+    s.append(body, progress(), footer());
+    return s;
+  }
+  function screenCta(item) {
+    const b = brand();
+    const s = el('div', 'screen cta-screen');
+    const body = el('div', 'body');
+    const txt = el('div', 'txt');
+    txt.append(el('div', 'h', esc(item.ctaTitle || b.ctaTitle)), el('div', 's', esc(item.ctaSub || b.ctaSub)));
+    if (item.urlLabel || item.url) txt.append(el('div', 'u', esc(item.urlLabel || item.url.replace(/^https?:\/\//, '').replace(/\?.*$/, ''))));
+    const box = el('div', 'qrbox');
+    box.append(el('div', 'qr', qrSvg(item.url || '')), el('div', 'qrcap', esc(b.qrCaption)));
+    body.append(txt, box);
+    s.append(body, progress(), footer());
+    return s;
+  }
+  function screenLocked(item) {
+    const s = el('div', 'screen locked-screen');
+    const body = el('div', 'body');
+    const at = new Date(item.answerAt);
+    const when = isNaN(at) ? '' : `${at.getMonth() + 1}月${at.getDate()}日 ${at.getHours()}時${String(at.getMinutes()).padStart(2, '0')}分`;
+    body.append(el('div', 'h', '答えはもう少しお待ちください'), el('div', 's', esc(when ? when + ' に公開します' : '次回の放映で公開します')));
+    s.append(body, progress(), footer());
+    return s;
+  }
+
+  function playQuiz(item, done) {
+    const t = timing(item);
+    const locked = item.answerAt && new Date() < new Date(item.answerAt);
+    const steps = [
+      ['title', () => screenTitle(), t.title],
+      ['question', () => screenQuestion(item, false), t.question],
+      ['hint', () => screenQuestion(item, true), t.hint],
+    ];
+    if (locked) steps.push(['locked', () => screenLocked(item), Math.min(8, t.answer)]);
+    else steps.push(['answer', () => screenAnswer(item), t.answer], ['cta', () => screenCta(item), t.cta]);
+    let i = 0;
+    if (JUMP_SCREEN) { const j = steps.findIndex(s => s[0] === JUMP_SCREEN); if (j >= 0) i = j; }
+    const run = () => {
+      if (i >= steps.length) return done();
+      const [, make, sec] = steps[i++];
+      if (sec <= 0) return run();
+      hold(make(), sec, run);
+    };
+    run();
+  }
+
+  // ---------- 動画・画像・汎用スライド ----------
+  function playVideo(item, done) {
+    const s = el('div', 'screen media-screen');
+    const v = document.createElement('video');
+    v.src = item.src; v.muted = true; v.autoplay = true; v.playsInline = true; v.preload = 'auto';
+    s.append(v);
+    mount(s);
+    let finished = false;
+    const finish = () => { if (finished) return; finished = true; clearTimeout(timer); done(); };
+    v.addEventListener('ended', finish);
+    v.addEventListener('error', finish);
+    // 万一 ended が来ない場合の保険
+    timer = setTimeout(finish, ((item.sec || 120) + 5) * 1000 / SPEED);
+    v.play().catch(finish);
+    cleanup = () => { clearTimeout(timer); v.pause(); };
+  }
+  function playImage(item, done) {
+    const s = el('div', 'screen media-screen');
+    const img = el('img'); img.src = item.src; img.alt = '';
+    s.append(img);
+    hold(s, item.sec || 15, done);
+  }
+  function playSlide(item, done) {
+    const s = el('div', 'screen slide-screen');
+    const body = el('div', 'body');
+    body.append(el('div', 'h', esc(item.title || '')));
+    if (item.subtitle) body.append(el('div', 'sub', esc(item.subtitle)));
+    const lines = el('div', 'lines');
+    (item.lines || []).forEach((ln, i) => {
+      const d = el('div', 'line');
+      if (typeof ln === 'string') d.append(el('span', null, esc(ln)));
+      else {
+        d.append(el('span', 'k', esc(ln.k != null ? ln.k : circled(i))), el('span', null, esc(ln.text || '')));
+        if (ln.value != null) d.append(el('span', 'v', esc(ln.value)));
+      }
+      lines.append(d);
+    });
+    body.append(lines);
+    if (item.url) {
+      const row = el('div', 'qr-side'); row.style.flexDirection = 'row'; row.style.justifyContent = 'flex-end'; row.style.gap = '24px';
+      row.append(el('div', 'cap', esc(item.qrCaption || '詳しくはスマホで')), el('div', 'qr', qrSvg(item.url)));
+      row.querySelector('.qr').style.width = row.querySelector('.qr').style.height = '170px';
+      body.append(row);
+    }
+    s.append(body, progress(), footer());
+    hold(s, item.sec || 15, done);
+  }
+
+  // ---------- ループ ----------
+  function next() {
+    if (cleanup) { cleanup(); cleanup = null; }
+    const items = liveItems();
+    if (!playlist || items.length === 0) {
+      showIdle(playlist ? '表示できるコンテンツがありません' : 'コンテンツを読み込んでいます');
+      timer = setTimeout(next, 10000);
+      return;
+    }
+    if (itemIndex >= items.length) {
+      itemIndex = 0;
+      if (pending) { playlist = pending; pending = null; return next(); }
+      // 1 日に 1 回はページごと読み直して、ページ自体の更新も反映する
+      if (Date.now() - startedAt > 24 * 3600 * 1000) { location.reload(); return; }
+    }
+    const item = items[itemIndex++];
+    const done = () => next();
+    switch (item.type) {
+      case 'quiz': return playQuiz(item, done);
+      case 'video': return playVideo(item, done);
+      case 'image': return playImage(item, done);
+      case 'slide': return playSlide(item, done);
+      default: return done();
+    }
+  }
+
+  function showIdle(msg) {
+    const b = brand();
+    const img = document.getElementById('idle-logo');
+    if (b.logo) img.src = b.logo;
+    document.getElementById('idle-msg').textContent = msg;
+    mount(idleScreen);
+  }
+
+  async function boot() {
+    showIdle('コンテンツを読み込んでいます');
+    const cached = loadCached();
+    try { playlist = await fetchPlaylist(); saveCache(playlist); }
+    catch (e) { playlist = cached; showError('playlist の取得に失敗: ' + e.message + (cached ? '(前回の内容で表示中)' : '')); }
+    if (JUMP_ITEM != null) itemIndex = Math.max(0, Math.min(liveItems().length - 1, parseInt(JUMP_ITEM, 10) || 0));
+    const every = Math.max(30, (playlist && playlist.refreshSec) || 300) * 1000;
+    setInterval(refresh, every);
+    next();
+  }
+  boot();
+})();
+</script>
+</body>
+</html>
