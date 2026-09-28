@@ -166,12 +166,33 @@
   keepAwake();
 
   // ---------- playlist の取得 ----------
-  async function fetchPlaylist() {
-    const url = PLAYLIST_URL + (PLAYLIST_URL.includes('?') ? '&' : '?') + 't=' + Date.now();
+  async function fetchJson(u) {
+    const url = u + (u.includes('?') ? '&' : '?') + 't=' + Date.now();
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
+    return res.json();
+  }
+
+  // playlist.json を読む。"source" に外部 URL があれば、その JSON の items を優先して使う
+  // (夜間バッチが chinamini.app 側に置いた週次の playlist を取り込む用途)。
+  // 外部の取得に失敗したときは playlist.json 自身の items にフォールバックする。
+  async function fetchPlaylist() {
+    const json = await fetchJson(PLAYLIST_URL);
     if (!json || !Array.isArray(json.items)) throw new Error('items がありません');
+    if (json.source) {
+      try {
+        const ext = await fetchJson(json.source);
+        const items = Array.isArray(ext) ? ext : ext && ext.items;
+        if (Array.isArray(items) && items.length) {
+          json.items = items;
+          if (ext && ext.timing) json.timing = Object.assign({}, json.timing || {}, ext.timing);
+          json.sourceOk = true;
+        } else throw new Error('source に items がありません');
+      } catch (e) {
+        json.sourceOk = false;
+        console.warn('source の取得に失敗。playlist.json の items を使用:', e.message);
+      }
+    }
     return json;
   }
 
