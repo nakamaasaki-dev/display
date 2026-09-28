@@ -15,7 +15,8 @@
 
 ## 公開手順(GitHub Pages)
 
-1. リポジトリの Settings → Pages で、Source を「Deploy from a branch」、Branch を `main` の `/ (root)` にする。
+1. リポジトリの Settings → Pages で、Source を「Deploy from a branch」、Branch を既定ブランチの `/ (root)` にする。
+   (現在の既定ブランチは `claude/hopeful-thompson-8i5a79`。Settings → General で `main` に改名してもよい)
 2. 数分後に `https://nakamaasaki-dev.github.io/display/` で表示できる。
 3. ディスプレイ側のブラウザでこの URL を全画面(キオスク)表示する。
 
@@ -102,7 +103,7 @@ chrome --kiosk --noerrdialogs --disable-session-crashed-bubble "https://nakamaas
 ## 週次更新の流れ(夜間バッチに組み込む場合)
 
 1. バッチがその週の 5 問を `playlist.json` の形式で書き出す。
-2. `git commit` して `main` に push する。
+2. `git commit` して Pages に設定したブランチへ push する。
 3. GitHub Pages が数分で更新され、各ディスプレイは次のループから新しい内容になる。
 
 バッチが `playlist.json` を上書きするときは、`brand` と `timing` を保つか、`items` だけを差し替えてください。
