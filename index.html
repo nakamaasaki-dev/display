@@ -29,8 +29,13 @@
   #viewport { position: fixed; inset: 0; }
   #stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; background: var(--paper); overflow: hidden; transform-origin: center center; }
 
-  .screen { position: absolute; inset: 0; display: none; flex-direction: column; background: var(--paper); }
-  .screen.active { display: flex; }
+  .screen { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--paper); opacity: 0; transition: opacity .45s ease; }
+  .screen.active { opacity: 1; }
+  .screen.leaving { pointer-events: none; }
+  /* 動作確認(静止画)モードではアニメーションを切る */
+  #stage.instant *, #stage.instant *::before, #stage.instant *::after { transition: none !important; animation: none !important; }
+  /* 文字サイズ計測用の非表示コピー */
+  .screen.measure, .screen.measure * { transition: none !important; animation: none !important; visibility: hidden; }
 
   /* 共通部品 */
   .body { flex: 1; display: flex; flex-direction: column; padding: 56px 90px 0; min-height: 0; }
@@ -39,33 +44,44 @@
   .rule { height: 3px; background: var(--line); margin: 26px 0 0; }
   .rule.thin { height: 2px; background: var(--rule); }
 
-  .choices { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 20px; padding: 26px 0 8px; min-height: 0; }
-  .choice { display: flex; align-items: center; gap: 24px; padding: 0 30px; min-height: 96px; max-height: 130px; flex: 1;
-            background: var(--choice-bg); border: 2px solid var(--choice-border); border-radius: 8px; font-size: 36px; font-weight: 700; line-height: 1.4; }
-  .choice .num { font-size: 40px; color: var(--navy); font-weight: 700; flex: 0 0 auto; }
-  .choice.correct { background: var(--navy); border-color: var(--navy); color: #fff; }
+  .choices { flex: 1; display: flex; flex-direction: column; justify-content: flex-start; padding: 30px 0 8px; min-height: 0; }
+  .choices.settled { flex: 0 0 auto; padding-bottom: 0; }
+  .choice { display: flex; align-items: center; gap: 24px; padding: 0 30px; min-height: 100px; max-height: 146px; flex: 1 1 0; box-sizing: border-box;
+            background: var(--choice-bg); border: 2px solid var(--choice-border); border-radius: 8px; font-size: 36px; font-weight: 700; line-height: 1.4;
+            margin-top: 20px; overflow: hidden;
+            transition: background-color .4s ease, border-color .4s ease, color .4s ease, opacity .4s ease, max-height .45s ease, min-height .45s ease, margin .45s ease, border-width .45s ease;
+            animation: rise .4s ease both; animation-delay: calc(.25s + var(--i, 0) * .22s); }
+  .choice:first-child { margin-top: 0; }
+  .choice .num { font-size: 40px; color: var(--navy); font-weight: 700; flex: 0 0 auto; transition: color .4s ease; }
+  .choice.correct { background: var(--navy); border-color: var(--navy); color: #fff; min-height: 118px; }
   .choice.correct .num { color: #fff; }
-  .choice.answer-only { flex: 0 0 auto; min-height: 118px; }
+  .choice.gone { opacity: 0; max-height: 0; min-height: 0; margin-top: 0; border-width: 0; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 
-  .hint { display: flex; align-items: center; gap: 24px; height: 70px; margin: 8px 0 0; visibility: hidden; }
-  .hint.show { visibility: visible; }
+  .hint { display: flex; align-items: center; gap: 24px; height: 70px; margin: 8px 0 0; opacity: 0; transition: opacity .35s ease, height .4s ease, margin .4s ease; overflow: hidden; flex: 0 0 auto; }
+  .hint.show { opacity: 1; }
+  .hint.gone { height: 0; margin: 0; opacity: 0; }
   .hint .tag { background: var(--navy); color: #fff; font-size: 30px; font-weight: 700; letter-spacing: 0.2em; padding: 0 28px; height: 62px; line-height: 62px; border-radius: 4px; }
   .hint .text { font-size: 40px; font-weight: 700; }
 
-  .progress { height: 12px; margin: 0 90px 12px; background: var(--bar-track); border-radius: 6px; overflow: hidden; }
-  .progress > i { display: block; height: 100%; width: 0; background: var(--bar); border-radius: 6px; }
+  .progress { height: 12px; margin: 0 90px 12px; background: var(--bar-track); border-radius: 6px; overflow: hidden; transition: opacity .35s ease, height .4s ease, margin .4s ease; }
+  .progress > i { display: block; height: 100%; width: 100%; background: var(--bar); border-radius: 6px; }
+  .progress.gone { opacity: 0; height: 0; margin-top: 0; margin-bottom: 0; }
 
   .footer { height: 90px; background: var(--footer-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 90px; font-size: 28px; color: var(--ink); }
   .footer img { height: 56px; }
 
   /* タイトル */
   .title-screen .body { align-items: center; justify-content: center; text-align: center; }
-  .title-screen .lead { font-size: 64px; font-weight: 700; color: var(--navy-soft); margin-bottom: 14px; }
-  .title-screen .big { font-size: 118px; font-weight: 900; color: var(--navy); line-height: 1.2; }
-  .title-screen .tline { width: 460px; height: 3px; background: var(--bar); margin: 40px 0 46px; }
-  .title-screen img { height: 90px; }
+  .title-screen .lead { font-size: 50px; font-weight: 700; color: var(--navy); letter-spacing: 0.04em; margin-bottom: 10px; }
+  .title-screen .big { font-size: 102px; font-weight: 900; color: var(--navy); line-height: 1.25; letter-spacing: 0.02em; }
+  .title-screen .tline { width: 525px; height: 3px; background: var(--bar); margin: 34px 0 40px; }
+  .title-screen img { height: 80px; }
 
-  /* 答えと解説 */
+  /* 答えと解説(正解発表後に同じ画面内で現れる) */
+  .answer-block { display: none; flex: 1; flex-direction: column; min-height: 0; opacity: 0; transition: opacity .45s ease; }
+  .answer-block.show { display: flex; }
+  .answer-block.in { opacity: 1; }
   .answer-label { font-size: 30px; color: var(--muted); letter-spacing: 0.2em; margin: 44px 0 10px; }
   .answer-row { flex: 1; display: flex; gap: 48px; min-height: 0; padding-top: 22px; }
   .explanation { flex: 1; font-size: 36px; line-height: 1.9; letter-spacing: 0.01em; }
@@ -75,14 +91,16 @@
   .qr-side .cap { font-size: 24px; color: var(--navy-soft); font-weight: 700; }
 
   /* 誘導 */
-  .cta-screen .body { flex-direction: row; align-items: center; justify-content: center; gap: 140px; padding-bottom: 60px; }
-  .cta-screen .txt .h { font-size: 60px; font-weight: 700; line-height: 1.5; color: var(--navy); }
-  .cta-screen .txt .s { font-size: 32px; line-height: 1.7; color: var(--navy-soft); margin-top: 26px; }
-  .cta-screen .txt .u { font-size: 28px; color: var(--muted); margin-top: 26px; }
-  .cta-screen .qrbox { display: flex; flex-direction: column; align-items: center; gap: 18px; }
-  .cta-screen .qr { width: 400px; height: 400px; background: #fff; border: 2px solid var(--rule); border-radius: 12px; padding: 20px; box-sizing: border-box; }
+  .cta-screen .body { flex-direction: row; align-items: center; justify-content: center; gap: 150px; padding-bottom: 40px; }
+  .cta-screen .txt { max-width: 820px; }
+  .cta-screen .txt .h { font-size: 58px; font-weight: 700; line-height: 1.5; color: var(--navy); white-space: pre-line; }
+  .cta-screen .txt .s { font-size: 32px; line-height: 1.75; color: var(--navy-soft); margin-top: 26px; white-space: pre-line; }
+  .cta-screen .txt .u { font-size: 27px; color: var(--muted); margin-top: 28px; }
+  .cta-screen .qrbox { display: flex; flex-direction: column; align-items: center; gap: 22px; }
+  .cta-screen .qr { width: 380px; height: 380px; background: #fff; border: 2px solid var(--rule); border-radius: 12px; padding: 22px; box-sizing: border-box; }
   .cta-screen .qr svg { width: 100%; height: 100%; display: block; }
-  .cta-screen .qrcap { font-size: 30px; font-weight: 700; color: var(--navy); }
+  .cta-screen .qrcap { display: flex; align-items: center; gap: 12px; font-size: 30px; font-weight: 700; color: var(--navy); }
+  .cta-screen .qrcap img { height: 52px; }
 
   /* 正解公開前 */
   .locked-screen .body { align-items: center; justify-content: center; text-align: center; }
@@ -127,10 +145,11 @@
     title: '雑学クイズ！',
     footer: 'チナミニ(chinamini.app)| WorkX 息抜きシリーズ',
     logo: 'assets/workx-logo.png',
-    ctaTitle: '詳しくは「チナミニ」の記事ページで！',
-    ctaSub: 'この問題のもとになった記事を、スマホで最後まで読めます。',
+    ctaTitle: '詳しくは「チナミニ」の\n記事ページで！',
+    ctaSub: 'この問題のもとになった記事を、\nスマホで最後まで読めます。',
     qrCaption: 'スマホで読み取り',
-    answerQrCaption: '記事はこちら'
+    answerQrCaption: '記事はこちら',
+    mascot: 'assets/chinamini-mascot.png'
   };
 
   const params = new URLSearchParams(location.search);
@@ -139,8 +158,10 @@
   const JUMP_ITEM = params.get('item');            // 動作確認用。0 始まりの index
   const JUMP_SCREEN = params.get('screen');        // 動作確認用。title/question/hint/answer/cta
   const FREEZE = params.get('freeze') === '1';     // 動作確認用。画面を止める
+  const INSTANT = FREEZE || !!params.get('screen'); // 静止画確認ではアニメーションなし
 
   const stage = document.getElementById('stage');
+  if (INSTANT) stage.classList.add('instant');
   const errBox = document.getElementById('err');
   const idleScreen = document.getElementById('scr-idle');
 
@@ -262,12 +283,27 @@
   }
   function progress() { const p = el('div', 'progress'); p.append(el('i')); return p; }
 
+  // 新しい画面を重ねてクロスフェードし、古い画面はフェード後に外す
   function mount(screen) {
-    for (const s of stage.querySelectorAll('.screen')) s.classList.remove('active');
-    for (const s of stage.querySelectorAll('.screen:not(#scr-idle)')) s.remove();
+    const olds = [...stage.querySelectorAll('.screen.active')];
+    for (const s of olds) { s.classList.remove('active'); s.classList.add('leaving'); }
     stage.append(screen);
-    screen.classList.add('active');
     fitText(screen);
+    void screen.offsetWidth;   // reflow してから active にし、遷移を効かせる
+    screen.classList.add('active');
+    setTimeout(() => { for (const s of olds) if (s !== idleScreen) s.remove(); }, INSTANT ? 0 : 600);
+  }
+
+  // 一定時間待つ(倍速・停止に対応)
+  function wait(ms, fn) { if (FREEZE) return; timer = setTimeout(fn, ms / SPEED); }
+
+  // カウントダウンバー: 満タンから 0 へ、ms かけて縮む
+  function countdown(bar, ms) {
+    if (!bar) return;
+    if (FREEZE) { bar.style.width = '62%'; return; }
+    bar.style.transition = 'none'; bar.style.width = '100%';
+    void bar.offsetWidth;
+    bar.style.transition = `width ${ms / SPEED}ms linear`; bar.style.width = '0%';
   }
 
   // 本文が枠からはみ出す場合は、文字を少しずつ小さくして収める
@@ -279,7 +315,7 @@
       ['.choice', 36, 26],
       ['.question', 46, 34],
       ['.slide-screen .line', 40, 28],
-    ].map(([sel, max, min]) => ({ els: [...screen.querySelectorAll(sel)], size: max, min }))
+    ].map(([sel, max, min]) => ({ els: [...screen.querySelectorAll(sel)].filter(e => !e.classList.contains('gone') && e.offsetParent !== null), size: max, min }))
      .filter(t => t.els.length);
     const overflows = () => body.scrollHeight > body.clientHeight + 1 || targets.some(t => t.els.some(e => e.scrollHeight > e.clientHeight + 1));
     for (let guard = 0; guard < 40 && overflows(); guard++) {
@@ -290,19 +326,12 @@
     }
   }
 
-  // 秒数付きで画面を出し、進捗バーを動かして終わったら next()
+  // 秒数付きで画面を出し、バーがあれば減らして、終わったら next()
   function hold(screen, sec, next) {
     mount(screen);
-    const bar = screen.querySelector('.progress > i');
-    const ms = sec * 1000 / SPEED;
-    const t0 = performance.now();
-    let raf = 0;
-    if (bar) {
-      const tick = (t) => { bar.style.width = Math.min(100, (t - t0) / ms * 100) + '%'; if (!FREEZE) raf = requestAnimationFrame(tick); };
-      raf = requestAnimationFrame(tick);
-    }
-    cleanup = () => { cancelAnimationFrame(raf); clearTimeout(timer); };
-    if (!FREEZE) timer = setTimeout(next, ms);
+    countdown(screen.querySelector('.progress > i'), sec * 1000);
+    cleanup = () => clearTimeout(timer);
+    wait(sec * 1000, next);
   }
 
   // ---------- クイズ ----------
@@ -313,16 +342,15 @@
     body.append(el('div', 'rule'));
     return body;
   }
-  function choiceList(item, correctOnly) {
+  function choiceList(item) {
     const wrap = el('div', 'choices');
     (item.choices || []).forEach((c, i) => {
-      const isAns = (i + 1) === Number(item.answer);
-      if (correctOnly && !isAns) return;
-      const d = el('div', 'choice' + (correctOnly ? ' correct answer-only' : ''));
+      const d = el('div', 'choice');
+      d.style.setProperty('--i', i);
+      d.dataset.index = i + 1;
       d.append(el('span', 'num', circled(i)), el('span', null, esc(c)));
       wrap.append(d);
     });
-    if (correctOnly) { wrap.style.flex = '0 0 auto'; wrap.style.padding = '30px 0 0'; }
     return wrap;
   }
 
@@ -335,22 +363,17 @@
     s.append(body);
     return s;
   }
-  function screenQuestion(item, withHint) {
-    const s = el('div', 'screen');
+  // 問題・ヒント・答えは 1 枚の画面で、状態を切り替えて表現する(元動画と同じ動き)
+  function screenQuiz(item) {
+    const b = brand();
+    const s = el('div', 'screen quiz-screen');
     const body = quizHeader(item);
-    body.append(choiceList(item, false));
-    const h = el('div', 'hint' + (withHint ? ' show' : ''));
+    body.append(choiceList(item));
+    const h = el('div', 'hint');
     h.append(el('span', 'tag', 'ヒント'), el('span', 'text', esc(item.hint || '')));
     body.append(h);
-    s.append(body, progress(), footer());
-    return s;
-  }
-  function screenAnswer(item) {
-    const b = brand();
-    const s = el('div', 'screen');
-    const body = quizHeader(item);
-    body.append(choiceList(item, true));
-    body.append(el('div', 'answer-label', '答えと解説'), el('div', 'rule thin'));
+    const ab = el('div', 'answer-block');
+    ab.append(el('div', 'answer-label', '答えと解説'), el('div', 'rule thin'));
     const row = el('div', 'answer-row');
     row.append(el('div', 'explanation', esc(item.explanation || '')));
     if (item.url) {
@@ -358,9 +381,48 @@
       side.append(el('div', 'qr', qrSvg(item.url)), el('div', 'cap', esc(item.answerQrCaption || b.answerQrCaption)));
       row.append(side);
     }
-    body.append(row);
+    ab.append(row);
+    body.append(ab);
     s.append(body, progress(), footer());
     return s;
+  }
+  function showHint(s) { s.querySelector('.hint').classList.add('show'); }
+  function applyAnswerState(s, item) {
+    const ans = Number(item.answer);
+    s.querySelectorAll('.choice').forEach(c => c.classList.add(Number(c.dataset.index) === ans ? 'correct' : 'gone'));
+    s.querySelector('.hint').classList.add('gone');
+    s.querySelector('.progress').classList.add('gone');
+  }
+  // 答え画面の最終レイアウトを非表示で組んで、収まる文字サイズを先に測る
+  // (アニメーション中に測ると消えかけの要素まで数えてしまうため)
+  function measureAnswerFit(item) {
+    const s = screenQuiz(item);
+    s.classList.add('measure', 'active');
+    applyAnswerState(s, item);
+    s.querySelector('.choices').classList.add('settled');
+    s.querySelector('.answer-block').classList.add('show', 'in');
+    stage.append(s);
+    fitText(s);
+    const pick = sel => { const e = s.querySelector(sel); return e ? e.style.fontSize : ''; };
+    const fit = { question: pick('.question'), explanation: pick('.explanation'), choice: pick('.choice.correct') };
+    s.remove();
+    return fit;
+  }
+  // 正解発表: 不正解が消え、正解が紺に染まり、ヒントとバーが引っ込んで、解説が現れる
+  function revealAnswer(s, item, fit) {
+    applyAnswerState(s, item);
+    const ab = s.querySelector('.answer-block');
+    const settle = () => {
+      s.querySelector('.choices').classList.add('settled');
+      if (fit) {
+        if (fit.explanation) s.querySelector('.explanation').style.fontSize = fit.explanation;
+        if (fit.choice) s.querySelector('.choice.correct').style.fontSize = fit.choice;
+      }
+      ab.classList.add('show');
+      void ab.offsetWidth;
+      ab.classList.add('in');
+    };
+    if (INSTANT) settle(); else setTimeout(settle, 450);
   }
   function screenCta(item) {
     const b = brand();
@@ -370,9 +432,12 @@
     txt.append(el('div', 'h', esc(item.ctaTitle || b.ctaTitle)), el('div', 's', esc(item.ctaSub || b.ctaSub)));
     if (item.urlLabel || item.url) txt.append(el('div', 'u', esc(item.urlLabel || item.url.replace(/^https?:\/\//, '').replace(/\?.*$/, ''))));
     const box = el('div', 'qrbox');
-    box.append(el('div', 'qr', qrSvg(item.url || '')), el('div', 'qrcap', esc(b.qrCaption)));
+    const cap = el('div', 'qrcap');
+    if (b.mascot) { const m = el('img'); m.src = b.mascot; m.alt = ''; cap.append(m); }
+    cap.append(el('span', null, esc(b.qrCaption)));
+    box.append(el('div', 'qr', qrSvg(item.url || '')), cap);
     body.append(txt, box);
-    s.append(body, progress(), footer());
+    s.append(body);   // 元動画どおり、誘導画面にはバーもフッターもない
     return s;
   }
   function screenLocked(item) {
@@ -381,29 +446,40 @@
     const at = new Date(item.answerAt);
     const when = isNaN(at) ? '' : `${at.getMonth() + 1}月${at.getDate()}日 ${at.getHours()}時${String(at.getMinutes()).padStart(2, '0')}分`;
     body.append(el('div', 'h', '答えはもう少しお待ちください'), el('div', 's', esc(when ? when + ' に公開します' : '次回の放映で公開します')));
-    s.append(body, progress(), footer());
+    s.append(body, footer());
     return s;
   }
 
   function playQuiz(item, done) {
     const t = timing(item);
     const locked = item.answerAt && new Date() < new Date(item.answerAt);
-    const steps = [
-      ['title', () => screenTitle(), t.title],
-      ['question', () => screenQuestion(item, false), t.question],
-      ['hint', () => screenQuestion(item, true), t.hint],
-    ];
-    if (locked) steps.push(['locked', () => screenLocked(item), Math.min(8, t.answer)]);
-    else steps.push(['answer', () => screenAnswer(item), t.answer], ['cta', () => screenCta(item), t.cta]);
-    let i = 0;
-    if (JUMP_SCREEN) { const j = steps.findIndex(s => s[0] === JUMP_SCREEN); if (j >= 0) i = j; }
-    const run = () => {
-      if (i >= steps.length) return done();
-      const [, make, sec] = steps[i++];
-      if (sec <= 0) return run();
-      hold(make(), sec, run);
+    const order = ['title', 'question', 'hint', locked ? 'locked' : 'answer', 'cta'];
+    let start = JUMP_SCREEN && order.includes(JUMP_SCREEN) ? JUMP_SCREEN : 'title';
+    cleanup = () => clearTimeout(timer);
+
+    const toCta = () => { if (locked) return done(); hold(screenCta(item), t.cta, done); };
+    const toLocked = () => hold(screenLocked(item), Math.min(8, t.answer), done);
+
+    // 問題 → ヒント → 答え は同じ画面で状態遷移する
+    const runQuiz = (from) => {
+      const fit = measureAnswerFit(item);
+      const s = screenQuiz(item);
+      if (fit.question) s.querySelector('.question').style.fontSize = fit.question;  // 問題文の大きさは最後まで変えない
+      mount(s);
+      const bar = s.querySelector('.progress > i');
+      const afterAnswer = () => wait(t.answer * 1000, toCta);
+      const answer = () => { if (locked) return toLocked(); revealAnswer(s, item, fit); afterAnswer(); };
+      const hint = (remainMs) => { showHint(s); wait(remainMs, answer); };
+      if (from === 'answer') { showHint(s); revealAnswer(s, item, fit); return afterAnswer(); }
+      if (from === 'hint') { countdown(bar, t.hint * 1000); return hint(t.hint * 1000); }
+      if (from === 'locked') return toLocked();
+      countdown(bar, (t.question + t.hint) * 1000);
+      wait(t.question * 1000, () => hint(t.hint * 1000));
     };
-    run();
+
+    if (start === 'cta') return toCta();
+    if (start === 'title') { hold(screenTitle(), t.title, () => runQuiz('question')); return; }
+    runQuiz(start);
   }
 
   // ---------- 動画・画像・汎用スライド ----------

@@ -15,10 +15,11 @@
     "title": "雑学クイズ！",
     "footer": "チナミニ(chinamini.app)| WorkX 息抜きシリーズ",
     "logo": "assets/workx-logo.png",
-    "ctaTitle": "詳しくは「チナミニ」の記事ページで！",
-    "ctaSub": "この問題のもとになった記事を、スマホで最後まで読めます。",
+    "ctaTitle": "詳しくは「チナミニ」の\n記事ページで！",
+    "ctaSub": "この問題のもとになった記事を、\nスマホで最後まで読めます。",
     "qrCaption": "スマホで読み取り",
-    "answerQrCaption": "記事はこちら"
+    "answerQrCaption": "記事はこちら",
+    "mascot": "assets/chinamini-mascot.png"
   },
   "items": [
     {
