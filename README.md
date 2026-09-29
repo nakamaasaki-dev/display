@@ -128,3 +128,17 @@ chrome --kiosk --noerrdialogs --disable-session-crashed-bubble "https://nakamaas
 - 解説の表示を 18 秒から 25 秒にする。
 
 秒数は `playlist.json` の `timing` で変えられます。
+
+## 動画(mp4)の書き出し
+
+サイネージページの描画をそのまま録画して、YouTube やファイル配信向けの mp4 を作れます。
+
+```
+pip install playwright imageio-ffmpeg opencv-python-headless && playwright install chromium
+python3 -m http.server 8765 &
+python3 tools/render_videos.py out/ 0,1,2,3,4      # playlist.json の項目番号(0 始まり)
+```
+
+- 出力は 1920×1080、30fps、71 秒、音なし。ファイル名は `quiz-workx-<id>.mp4`。
+- 太字のある日本語フォント(Noto Sans CJK JP、ヒラギノなど)を OS に入れておくこと。
+- ページの `?export=1` は書き出し専用モードで、指定した項目を 1 回だけ再生して白画面で止まります。

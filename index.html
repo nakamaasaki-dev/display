@@ -20,7 +20,7 @@
     --bar: #4671BF;
     --bar-track: #DFDDDC;
     --paper: #FFFFFF;
-    --font: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", "YuGothic", "Meiryo", system-ui, sans-serif;
+    --font: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Noto Sans CJK JP", "Yu Gothic", "YuGothic", "Meiryo", system-ui, sans-serif;
   }
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor: none; }
   body { font-family: var(--font); color: var(--ink); -webkit-font-smoothing: antialiased; }
@@ -159,6 +159,7 @@
   const JUMP_SCREEN = params.get('screen');        // 動作確認用。title/question/hint/answer/cta
   const FREEZE = params.get('freeze') === '1';     // 動作確認用。画面を止める
   const INSTANT = FREEZE || !!params.get('screen'); // 静止画確認ではアニメーションなし
+  const EXPORT = params.get('export') === '1';     // 動画書き出し用。item を 1 回だけ再生して白画面で止まる
 
   const stage = document.getElementById('stage');
   if (INSTANT) stage.classList.add('instant');
@@ -284,7 +285,11 @@
   function progress() { const p = el('div', 'progress'); p.append(el('i')); return p; }
 
   // 新しい画面を重ねてクロスフェードし、古い画面はフェード後に外す
+  let firstMount = true;
   function mount(screen) {
+    // 書き出し時は最初の画面だけフェードなしで出す(動画の 0 秒目からタイトルが見えるように)
+    if (EXPORT && firstMount) { stage.classList.add('instant'); requestAnimationFrame(() => requestAnimationFrame(() => stage.classList.remove('instant'))); }
+    firstMount = false;
     const olds = [...stage.querySelectorAll('.screen.active')];
     for (const s of olds) { s.classList.remove('active'); s.classList.add('leaving'); }
     stage.append(screen);
@@ -546,7 +551,10 @@
       if (Date.now() - startedAt > 24 * 3600 * 1000) { location.reload(); return; }
     }
     const item = items[itemIndex++];
-    const done = () => next();
+    const done = () => {
+      if (EXPORT) { mount(el('div', 'screen export-done')); document.title = 'EXPORT_DONE'; return; }
+      next();
+    };
     switch (item.type) {
       case 'quiz': return playQuiz(item, done);
       case 'video': return playVideo(item, done);
@@ -557,6 +565,7 @@
   }
 
   function showIdle(msg) {
+    if (EXPORT) { mount(el('div', 'screen')); return; }   // 書き出し時は真っ白で待つ
     const b = brand();
     const img = document.getElementById('idle-logo');
     if (b.logo) img.src = b.logo;
@@ -571,7 +580,9 @@
     catch (e) { playlist = cached; showError('playlist の取得に失敗: ' + e.message + (cached ? '(前回の内容で表示中)' : '')); }
     if (JUMP_ITEM != null) itemIndex = Math.max(0, Math.min(liveItems().length - 1, parseInt(JUMP_ITEM, 10) || 0));
     const every = Math.max(30, (playlist && playlist.refreshSec) || 300) * 1000;
-    setInterval(refresh, every);
+    if (!EXPORT) setInterval(refresh, every);
+    if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (_) {} }
+    if (EXPORT) { firstMount = true; document.title = 'EXPORT_START'; }
     next();
   }
   boot();
